@@ -69,6 +69,8 @@ typedef NS_ENUM(NSInteger, BTUIKColorScheme) {
 @property (nonatomic) enum BTUIKColorScheme colorScheme;
 /// Appearance style of keyboards associated with text fields
 @property (nonatomic) UIKeyboardAppearance keyboardAppearance;
+/// Whether or not the BTDropInController should be able to skip the BTPaymentSelectionViewController and navigate directly to the appropriate form
+@property (nonatomic) BOOL shouldSkipPaymentSelectionScreen;
 
 /// Sets the color (primary or secondary) and font with family and size (large or small)
 /// These properties are on the [BTUIKAppearance sharedInstance]

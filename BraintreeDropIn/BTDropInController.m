@@ -46,6 +46,9 @@
 @property (nonatomic, copy) NSArray *displayCardTypes;
 @property (nonatomic, strong) UIVisualEffectView *blurredContentBackgroundView;
 @property (nonatomic, copy, nullable) BTDropInControllerHandler handler;
+@property (nonatomic) BOOL canSkipSelectionController;
+@property (nonatomic, strong) UIActivityIndicatorView *activityIndicatorView;
+@property (nonatomic, strong) UIView *activityIndicatorWrapperView;
 
 @end
 
@@ -64,10 +67,17 @@
         if (!_apiClient || !_dropInRequest) {
             return nil;
         }
+        
+        self.canSkipSelectionController = ![_dropInRequest vaultManager] && [_dropInRequest onlyOnePaymentMethodEnabled];
+        
         if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
-            self.modalPresentationStyle = UIModalPresentationFormSheet;
-            // Customize the iPad size...
-            // self.preferredContentSize = CGSizeMake(600, 400);
+            if (self.canSkipSelectionController && [_dropInRequest onlyCardEnabled] && [BTUIKAppearance sharedInstance].shouldSkipPaymentSelectionScreen) {
+                 self.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+             } else {
+                 self.modalPresentationStyle = UIModalPresentationFormSheet;
+                 // Customize the iPad size...
+                 // self.preferredContentSize = CGSizeMake(600, 400);
+             }
         } else {
             self.transitioningDelegate = self;
             self.modalPresentationStyle = UIModalPresentationCustom;
@@ -99,6 +109,11 @@
     [self setUpViews];
     [self setUpChildViewControllers];
     [self setUpConstraints];
+    
+    if (self.canSkipSelectionController && [_dropInRequest onlyCardEnabled] && [BTUIKAppearance sharedInstance].shouldSkipPaymentSelectionScreen) {
+        [self setUpLoadingIndicator];
+        [self showLoadingScreen:YES];
+    }
 }
 
 - (void)viewWillAppear:(BOOL)animated {
@@ -178,6 +193,18 @@
     self.blurredContentBackgroundView.hidden = !self.useBlur;
     [self.contentView addSubview:self.blurredContentBackgroundView];
     [self.contentView sendSubviewToBack:self.blurredContentBackgroundView];
+    
+    // potentially hide the contentView for the transition
+     if (self.canSkipSelectionController && [_dropInRequest onlyCardEnabled] && [BTUIKAppearance sharedInstance].shouldSkipPaymentSelectionScreen) {
+         if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+             // only done because of iPad presentation style
+             self.view.hidden = YES;
+             self.view.alpha = 0.0;
+         }
+
+         self.contentView.hidden = YES;
+         self.contentView.alpha = 0.0;
+     }
 }
 
 - (void)setUpChildViewControllers {
@@ -231,6 +258,25 @@
     [self applyContentViewConstraints];
 }
 
+- (void)setUpLoadingIndicator {
+    self.activityIndicatorWrapperView = [[UIView alloc] init];
+    self.activityIndicatorWrapperView.backgroundColor = [UIColor clearColor];
+    self.activityIndicatorWrapperView.hidden = YES;
+    [self.view addSubview:self.activityIndicatorWrapperView];
+    self.activityIndicatorWrapperView.translatesAutoresizingMaskIntoConstraints = NO;
+
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[activityWrapper]|" options:0 metrics:nil views:@{@"activityWrapper": self.activityIndicatorWrapperView}]];
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[activityWrapper]|" options:0 metrics:nil views:@{@"activityWrapper": self.activityIndicatorWrapperView}]];
+
+    self.activityIndicatorView = [UIActivityIndicatorView new];
+    self.activityIndicatorView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.activityIndicatorView.activityIndicatorViewStyle = [BTUIKAppearance sharedInstance].activityIndicatorViewStyle;
+    [self.activityIndicatorView startAnimating];
+    [self.activityIndicatorWrapperView addSubview:self.activityIndicatorView];
+    [self.activityIndicatorView.centerXAnchor constraintEqualToAnchor:self.activityIndicatorWrapperView.centerXAnchor].active = YES;
+    [self.activityIndicatorView.centerYAnchor constraintEqualToAnchor:self.activityIndicatorWrapperView.centerYAnchor].active = YES;
+}
+
 - (void)loadConfiguration {
     [self.apiClient fetchOrReturnRemoteConfiguration:^(BTConfiguration * _Nullable configuration, NSError * _Nullable error) {
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -244,7 +290,7 @@
                 
                 // Optionally configure the supported cards to display
                  NSMutableArray *displayCardTypes = [NSMutableArray new];
-                 for (NSNumber *cardTypeToDisplay in [_dropInRequest supportedCardsDisplayed]) {
+                 for (NSNumber *cardTypeToDisplay in [self.dropInRequest supportedCardsDisplayed]) {
                      BTUIKPaymentOptionType displayType = (BTUIKPaymentOptionType) [cardTypeToDisplay integerValue];
                      if (![displayCardTypes containsObject:@(displayType)] && displayType != BTUIKPaymentOptionTypeUnknown) {
                          [displayCardTypes addObject:@(displayType)];
@@ -259,6 +305,13 @@
                     }
                 }
                 self.displayCardTypes = paymentOptionTypes;
+                
+                if (self.canSkipSelectionController && [self.dropInRequest onlyCardEnabled] && [BTUIKAppearance sharedInstance].shouldSkipPaymentSelectionScreen) {
+                     dispatch_async(dispatch_get_main_queue(), ^{
+                         [self showLoadingScreen:NO];
+                         [self performSelector:@selector(showCardForm:) withObject:self];
+                     });
+                 }
             } else {
                 if (self.handler) {
                     self.handler(self, nil, error);
@@ -266,6 +319,13 @@
             }
         });
     }];
+}
+
+- (void)showLoadingScreen:(BOOL)show {
+    if (show) {
+        [self.view bringSubviewToFront:self.activityIndicatorWrapperView];
+    }
+    self.activityIndicatorWrapperView.hidden = !show;
 }
 
 #pragma mark - View management and actions
@@ -559,6 +619,14 @@
         navController.modalPresentationStyle = UIModalPresentationOverCurrentContext;
     }
     [self presentViewController:navController animated:YES completion:nil];
+}
+
+- (void)dismissDropInController {
+    if (self.canSkipSelectionController && [_dropInRequest onlyCardEnabled] && [BTUIKAppearance sharedInstance].shouldSkipPaymentSelectionScreen) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self performSelector:@selector(cancelHit:) withObject:self];
+        });
+    }
 }
 
 #pragma mark UIViewControllerTransitioningDelegate
