@@ -45,6 +45,7 @@ static BTUIKAppearance *sharedTheme;
     sharedTheme.lineColor = [UIColor btuik_colorFromHex:@"BFBFBF" alpha:1.0];
     sharedTheme.blurStyle = UIBlurEffectStyleExtraLight;
     sharedTheme.activityIndicatorViewStyle = UIActivityIndicatorViewStyleGray;
+    sharedTheme.shouldSkipPaymentSelectionScreen = NO;
     [sharedTheme setDefaultColors];
 }
 
@@ -58,6 +59,7 @@ static BTUIKAppearance *sharedTheme;
     sharedTheme.lineColor = [UIColor btuik_colorFromHex:@"666666" alpha:1.0];
     sharedTheme.blurStyle = UIBlurEffectStyleDark;
     sharedTheme.activityIndicatorViewStyle = UIActivityIndicatorViewStyleWhite;
+    sharedTheme.shouldSkipPaymentSelectionScreen = NO;
     [sharedTheme setDefaultColors];
 }
 
