@@ -35,6 +35,7 @@
     request.vaultManager = self.vaultManager;
     request.vaultCard = self.vaultCard;
     request.allowVaultCardOverride = self.allowVaultCardOverride;
+    request.supportedCardsDisplayed = self.supportedCardsDisplayed;
     return request;
 }
 
